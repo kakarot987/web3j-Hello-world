@@ -1,0 +1,17 @@
+.git
+.gradle
+build
+.idea
+.vscode
+node_modules
+keystore
+wallets
+**/keystore/**
+**/UTC--*.json
+**/*keystore*.json
+**/*.key
+**/*.pem
+.env
+.env.*
+*.iml
+.DS_Store

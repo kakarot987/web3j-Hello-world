@@ -1,38 +1,77 @@
 package org.web3j;
 
+import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Set;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.WalletUtils;
+import org.web3j.generated.contracts.HelloWorld;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.http.HttpService;
-import org.web3j.tx.gas.DefaultGasProvider;
 import org.web3j.tx.gas.StaticGasProvider;
 
-import org.web3j.generated.contracts.HelloWorld;
-import java.math.BigInteger;
-/**
- * <p>This is the generated class for <code>web3j new helloworld</code></p>
- * <p>It deploys the Hello World contract in src/main/solidity/ and prints its address</p>
- * <p>For more information on how to run this project, please refer to our <a href="https://docs.web3j.io/latest/command_line_tools/#running-your-application">documentation</a></p>
- */
-public class Web3App {
+/** Educational local-chain demo. Do not deploy real funds or production wallets. */
+public final class Web3App {
+    private static final Set<BigInteger> LOCAL_CHAIN_IDS = Set.of(
+            BigInteger.valueOf(1337),
+            BigInteger.valueOf(5777),
+            BigInteger.valueOf(31337));
+    private static final BigInteger GAS_PRICE = BigInteger.valueOf(2_000_000_000L);
+    private static final BigInteger GAS_LIMIT = BigInteger.valueOf(4_500_000L);
 
-   private static final String nodeUrl = System.getenv().getOrDefault("WEB3J_NODE_URL", "<node_url>");
-   private static final String walletPassword = System.getenv().getOrDefault("WEB3J_WALLET_PASSWORD", "<wallet_password>");
-   private static final String walletPath = System.getenv().getOrDefault("WEB3J_WALLET_PATH", "<wallet_path>");
+    private Web3App() { }
 
-   public static void main(String[] args) throws Exception {
-        Credentials credentials = Credentials.create("0x41481db4a636b65a63d5c1cb5b205064622291402f6a7b48bc445c22228d9c1c");
-        Web3j web3j = Web3j.build(new HttpService(nodeUrl));
-       // Set gas price and gas limit manually to avoid exceeding Ganache’s block gas limit
-       BigInteger gasPrice = BigInteger.valueOf(20_000_000_000L); // 20 Gwei
-       BigInteger gasLimit = BigInteger.valueOf(4_500_000);       // safely under Ganache’s default (6,721,975)
+    public static void main(String[] args) throws Exception {
+        String walletPath = requiredEnvironmentVariable("WEB3J_WALLET_PATH");
+        String walletPassword = requiredEnvironmentVariable("WEB3J_WALLET_PASSWORD");
+        String rpcUrl = System.getenv().getOrDefault("WEB3J_NODE_URL", "http://127.0.0.1:8545");
 
-       StaticGasProvider gasProvider = new StaticGasProvider(gasPrice, gasLimit);
+        if (!Files.isRegularFile(Path.of(walletPath))) {
+            throw new IllegalStateException("WEB3J_WALLET_PATH must point to an existing wallet file.");
+        }
+        if (!rpcUrl.startsWith("http://") && !rpcUrl.startsWith("https://")) {
+            throw new IllegalStateException("WEB3J_NODE_URL must be an HTTP(S) RPC URL.");
+        }
 
-        System.out.println("Deploying HelloWorld contract ...");
-        HelloWorld helloWorld = HelloWorld.deploy(web3j, credentials, gasProvider, "Hello Blockchain World!").send();
-        System.out.println("Contract address: " + helloWorld.getContractAddress());
-        System.out.println("Greeting method result: " + helloWorld.greeting().send());
-       }
+        Web3j web3j = Web3j.build(new HttpService(rpcUrl));
+        try {
+            requireLocalChain(web3j.ethChainId().send().getChainId());
+
+            Credentials credentials;
+            try {
+                credentials = WalletUtils.loadCredentials(walletPassword, walletPath);
+            } catch (Exception ignored) {
+                throw new IllegalStateException(
+                        "Cannot load development wallet. Check WEB3J_WALLET_PATH and WEB3J_WALLET_PASSWORD.");
+            }
+
+            var gasProvider = new StaticGasProvider(GAS_PRICE, GAS_LIMIT);
+            System.out.println("Deploying HelloWorld to the local development chain...");
+            HelloWorld contract = HelloWorld.deploy(
+                    web3j, credentials, gasProvider, "Hello Blockchain World!").send();
+            System.out.println("Contract address: " + contract.getContractAddress());
+            System.out.println("Initial greeting: " + contract.greeting().send());
+
+            contract.newGreeting("Updated through Web3j!").send();
+            System.out.println("Updated greeting: " + contract.greeting().send());
+        } finally {
+            web3j.shutdown();
+        }
+    }
+
+    static void requireLocalChain(BigInteger chainId) {
+        if (chainId == null || !LOCAL_CHAIN_IDS.contains(chainId)) {
+            throw new IllegalStateException(
+                    "Refusing deployment: only local development chains 1337, 5777 and 31337 are allowed.");
+        }
+    }
+
+    private static String requiredEnvironmentVariable(String name) {
+        String value = System.getenv(name);
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(name + " is required. See README.md for setup.");
+        }
+        return value;
+    }
 }
-

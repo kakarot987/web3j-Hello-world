@@ -1,3 +1,16 @@
-# .gitignore
 .gradle/
 build/
+.idea/
+.vscode/
+*.iml
+*.class
+node_modules/
+keystore/
+wallets/
+.env
+.env.*
+**/UTC--*.json
+**/*keystore*.json
+*.key
+*.pem
+.DS_Store

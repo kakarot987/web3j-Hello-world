@@ -1,9 +1,8 @@
 pluginManagement {
-  repositories {
-      mavenLocal()
-      gradlePluginPortal()
-      maven { url "https://hyperledger.jfrog.io/hyperledger/besu-maven" }
-      maven { url "https://splunk.jfrog.io/splunk/ext-releases-local" }
-  }
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
 }
-rootProject.name = 'Web3App';
+
+rootProject.name = 'Web3App'

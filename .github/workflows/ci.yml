@@ -1,0 +1,46 @@
+name: Java and local-chain tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Start isolated Ganache chain
+        run: |
+          npx --yes ganache@7.9.2 --server.host 127.0.0.1 --server.port 8545 --chain.chainId 1337 > /tmp/ganache.log 2>&1 &
+          for i in {1..30}; do
+            if curl --silent --fail -H 'Content-Type: application/json' \
+              --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' \
+              http://127.0.0.1:8545 | grep -q '"result"'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/ganache.log
+          exit 1
+      - name: Build and run unit + local integration tests
+        env:
+          RUN_GANACHE_TESTS: 'true'
+          WEB3J_NODE_URL: http://127.0.0.1:8545
+        run: bash ./gradlew --no-daemon clean build
+      - name: Build Docker image
+        run: docker build -t web3app:test .

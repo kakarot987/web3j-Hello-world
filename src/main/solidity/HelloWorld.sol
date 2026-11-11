@@ -1,47 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.19;
 
-// Modified Greeter contract. Based on example at https://www.ethereum.org/greeter.
+// Educational example. Deploy only to a disposable local development blockchain.
+contract HelloWorld {
+    address public immutable owner;
+    string private currentGreeting;
 
-contract Mortal {
-    /* Define variable owner of the type address*/
-    address owner;
+    event GreetingChanged(string oldGreeting, string newGreeting);
 
-    /* this function is executed at initialization and sets the owner of the contract */
-    constructor () {owner = msg.sender;}
+    constructor(string memory initialGreeting) {
+        owner = msg.sender;
+        currentGreeting = initialGreeting;
+    }
 
-    modifier onlyOwner {
-        require(
-            msg.sender == owner,
-            "Only owner can call this function."
-        );
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can change the greeting");
         _;
     }
 
-    /* Function to recover the funds on the contract */
-    function kill() onlyOwner public {selfdestruct(msg.sender);}
-}
-
-contract HelloWorld is Mortal {
-    /* define variable greeting of the type string */
-    string greet;
-
-    /* this runs when the contract is executed */
-    constructor (string memory _greet) {
-        greet = _greet;
+    function greeting() external view returns (string memory) {
+        return currentGreeting;
     }
 
-    function newGreeting(string memory _greet) onlyOwner public {
-        emit Modified(greet, _greet, greet, _greet);
-        greet = _greet;
+    function newGreeting(string calldata newValue) external onlyOwner {
+        emit GreetingChanged(currentGreeting, newValue);
+        currentGreeting = newValue;
     }
-
-    /* main function */
-    function greeting() public view returns (string memory)  {
-        return greet;
-    }
-
-    event Modified(
-        string indexed oldGreetingIdx, string indexed newGreetingIdx,
-        string oldGreeting, string newGreeting);
 }

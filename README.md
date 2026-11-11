@@ -1,153 +1,126 @@
-# Web3j HelloWorld Smart Contract Project
+# Web3j Hello World — Local Blockchain Demo
 
-This project demonstrates how to deploy and interact with a simple Solidity smart contract (`HelloWorld`) using Java and the Web3j library. The contract is deployed to a local Ethereum blockchain simulated by Ganache.
+A **learning-only** Java 21 + Web3j project. It deploys a Solidity greeting contract to a local Ganache Ethereum chain, reads the initial greeting, updates it as owner, and tests access control.
 
----
+**Never use this application with real funds or production credentials.** The application refuses to deploy to any chain except the local development chain IDs 1337, 5777, and 31337.
 
-## 📦 Project Overview
+## Requirements
 
-* **Smart Contract**: `HelloWorld.sol` written in Solidity.
-* **Client**: Java application using Web3j.
-* **Network**: Ganache (local Ethereum blockchain).
-* **Tooling**: Gradle, Java 21, Web3j, Ganache UI.
+- Java 21 (Gradle 8.7 wrapper included)
+- Node.js/npm or an existing Ganache installation
+- Docker, optionally
 
----
+No global Gradle or Web3j CLI installation is needed.
 
-## 🔧 Prerequisites
+## Project structure
 
-* Java 17+ (tested with Java 21)
-* Gradle
-* Ganache (GUI or CLI)
-* Web3j CLI (optional, for code generation)
-
----
-
-## 📟 Project Structure
-
-```
-.
-├── contracts/
-│   └── HelloWorld.sol
-├── src/
-│   └── main/
-│       ├── java/
-│       │   └── org/web3j/Web3App.java
-│       └── resources/
-├── build.gradle
-└── README.md
+```text
+src/main/java/org/web3j/Web3App.java          # Deploy, read and update
+src/main/java/org/web3j/ImportDevWallet.java   # Make an encrypted development keystore
+src/main/solidity/HelloWorld.sol               # Greeting with owner-only updates
+src/test/java/org/web3j/                      # Unit and local-chain integration tests
+build.gradle                                   # Java, Gradle and Solidity compilation
+Dockerfile                                     # JDK builder and JRE runtime
+.github/workflows/ci.yml                      # Continuous integration
 ```
 
----
-
-## 📜 Smart Contract - HelloWorld.sol
-
-```solidity
-// SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.7.0;
-
-contract Mortal {
-    address owner;
-    constructor () { owner = msg.sender; }
-
-    modifier onlyOwner {
-        require(msg.sender == owner, "Only owner can call this function.");
-        _;
-    }
-
-    function kill() public onlyOwner {
-        selfdestruct(msg.sender);
-    }
-}
-
-contract HelloWorld is Mortal {
-    string greet;
-
-    constructor (string memory _greet) {
-        greet = _greet;
-    }
-
-    function newGreeting(string memory _greet) public onlyOwner {
-        emit Modified(greet, _greet, greet, _greet);
-        greet = _greet;
-    }
-
-    function greeting() public view returns (string memory) {
-        return greet;
-    }
-
-    event Modified(
-        string indexed oldGreetingIdx,
-        string indexed newGreetingIdx,
-        string oldGreeting,
-        string newGreeting
-    );
-}
-```
-
----
-
-## ⚙️ Environment Variables
-
-Set the following environment variables or hardcode them for testing:
-
-| Variable                | Description                                              |
-| ----------------------- | -------------------------------------------------------- |
-| `WEB3J_NODE_URL`        | Ethereum RPC URL (e.g., Ganache `http://127.0.0.1:7545`) |
-| `WEB3J_WALLET_PASSWORD` | Password for the wallet file (if using keystore)         |
-| `WEB3J_WALLET_PATH`     | Path to your wallet file                                 |
-
-Alternatively, you can use a private key directly (for Ganache testing accounts):
-
-```java
-Credentials credentials = Credentials.create("<private_key>");
-```
-
----
-
-## 🚀 Running the Project
+## Quick start
 
 ### 1. Start Ganache
 
-Ensure Ganache is running and that the selected account has ETH.
-
-### 2. Compile and Run the Java App
+Start a fresh, disposable local chain in one terminal:
 
 ```bash
-./gradlew run
+npx --yes ganache@7.9.2 --server.host 127.0.0.1 --server.port 8545 --chain.chainId 1337
 ```
 
----
+Ganache generates test accounts with **fictitious development ETH**. Use only new disposable accounts; never reuse the key previously committed to this repository.
 
-## 💠 Custom Gas Settings
+### 2. Import a new development account
 
-To avoid block gas limit or cost issues, use:
+In a second terminal, from the project root (Linux/macOS Bash):
 
-```java
-BigInteger gasPrice = BigInteger.valueOf(20_000_000_000L); // 20 Gwei
-BigInteger gasLimit = BigInteger.valueOf(4_500_000);       // safe for Ganache
+```bash
+read -rs -p 'New Ganache development private key: ' DEV_WALLET_PRIVATE_KEY; echo
+export DEV_WALLET_PRIVATE_KEY
+read -rs -p 'New local wallet password: ' WEB3J_WALLET_PASSWORD; echo
+export WEB3J_WALLET_PASSWORD
 
-StaticGasProvider gasProvider = new StaticGasProvider(gasPrice, gasLimit);
-HelloWorld helloWorld = HelloWorld.deploy(web3j, credentials, gasProvider, "Hello Blockchain World!").send();
+bash ./gradlew importDevWallet
+unset DEV_WALLET_PRIVATE_KEY
 ```
 
----
+The importer prints the path of an encrypted JSON keystore. Copy that **new** path into the second terminal:
 
-## 🥪 Troubleshooting
+```bash
+export WEB3J_WALLET_PATH='/absolute/path/printed/by/importer.json'
+export WEB3J_NODE_URL='http://127.0.0.1:8545'
+```
 
-* **`exceeds block gas limit`**: Lower the `gasLimit` value.
-* **`insufficient funds for gas * price + value`**: Ensure the address you're using has ETH in Ganache.
-* **Invalid Credentials**: Do not use an address string as a private key.
+The password and key remain sensitive even in environment variables; these steps are for disposable local development accounts only. The keystore directory is ignored by Git and excluded from Docker builds.
 
----
+### 3. Build and run
 
-## 📒 References
+```bash
+bash ./gradlew clean build
+bash ./gradlew run
+```
 
-* [Web3j Documentation](https://docs.web3j.io/)
-* [Ganache by Truffle Suite](https://trufflesuite.com/ganache/)
-* [Solidity Language](https://soliditylang.org/)
+You should see the contract address, its original greeting and the new greeting. The build compiles the Solidity source and generates the Java Web3j contract wrapper.
 
----
+## Tests
 
-## 📄 License
+Unit tests run with a normal build. To run the deployment and access-control integration test against your running Ganache instance:
 
-Apache-2.0
+```bash
+RUN_GANACHE_TESTS=true bash ./gradlew test
+```
+
+The integration test uses Ganache's first two unlocked accounts; it requires no repository-stored private keys. GitHub Actions launches a disposable Ganache node and runs the integration test on each push and pull request.
+
+## Docker
+
+The Docker build uses a Java 21 **JDK** to compile and a Java 21 **JRE** to execute the result. Secrets and keystores are excluded by `.dockerignore`.
+
+```bash
+docker build -t web3app .
+```
+
+Example Docker run on **Linux**, with Ganache on the host and a wallet created above:
+
+```bash
+WALLET_FILE="$(basename "$WEB3J_WALLET_PATH")"
+docker run --rm --network host --user "$(id -u):$(id -g)" \
+  -e WEB3J_NODE_URL='http://127.0.0.1:8545' \
+  -e WEB3J_WALLET_PATH="/wallet/$WALLET_FILE" \
+  -e WEB3J_WALLET_PASSWORD \
+  -v "$PWD/keystore:/wallet:ro" \
+  web3app
+```
+
+The container uses a read-only wallet mount; matching the host user lets it read the wallet's restrictive file permissions. Docker Desktop may require different network settings. Never publish the Ganache RPC endpoint to an untrusted network.
+
+## Configuration
+
+| Environment variable | Required | Description |
+| --- | --- | --- |
+| `WEB3J_NODE_URL` | No | RPC URL; default `http://127.0.0.1:8545` |
+| `WEB3J_WALLET_PATH` | Yes, for app | Existing encrypted development keystore |
+| `WEB3J_WALLET_PASSWORD` | Yes, for app/import | Password for the development keystore |
+| `DEV_WALLET_PRIVATE_KEY` | Only during import | New, disposable Ganache test key; unset after import |
+| `WEB3J_WALLET_DIR` | No | Keystore output directory; default `keystore/` |
+| `RUN_GANACHE_TESTS` | No | Set to `true` to run integration tests |
+
+The Solidity contract allows the owner to update its greeting. The old legacy `selfdestruct` behavior has been removed.
+
+## Security notice
+
+The original public repository included a literal private key and a JSON keystore. **Consider the published account permanently compromised, even after these files have been deleted.** Never deploy using it again. If it controls real assets, move them to a newly generated secure account.
+
+This change untracks the old wallet file and removes IDE and generated Node files. The current source tree no longer includes them. **Git history still contains old commits with the credentials.** Deleting a file from a new commit does not delete it from historical commits; rotate or retire exposed credentials regardless of history cleanup.
+
+Do not commit private keys, keystores, password files or real wallets. This application is a **learning example**, not production Ethereum software.
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).
